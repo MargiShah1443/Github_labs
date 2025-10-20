@@ -3,6 +3,7 @@ name: Model Retraining on Push to Main
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   retrain:
@@ -19,9 +20,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # One timestamp shared by all steps
       - name: Generate timestamp
         id: ts
         run: echo "timestamp=$(date '+%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Show repo tree (debug)
+        run: |
+          pwd
+          ls -la
+          ls -la src || true
 
       - name: Ensure folders exist
         run: |
@@ -37,10 +45,10 @@ jobs:
 
       - name: Move artifacts into folders
         run: |
-          mv model_${{ steps.ts.outputs.timestamp }}_gb_calibrated.joblib models/
-          mv ${{ steps.ts.outputs.timestamp }}_metrics.json metrics/
+          mv "model_${{ steps.ts.outputs.timestamp }}_gb_calibrated.joblib" models/
+          mv "${{ steps.ts.outputs.timestamp }}_metrics.json" metrics/
 
-      - name: Upload artifacts (easy viewing)
+      - name: Upload artifacts (for easy download)
         uses: actions/upload-artifact@v4
         with:
           name: run-${{ steps.ts.outputs.timestamp }}
