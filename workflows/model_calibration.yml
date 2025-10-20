@@ -1,0 +1,59 @@
+name: Periodic Model Calibration
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily at 03:00 UTC
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate timestamp
+        id: ts
+        run: echo "timestamp=$(date '+%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure folders exist
+        run: |
+          mkdir -p models
+          mkdir -p metrics
+          mkdir -p mlruns
+
+      - name: Train model
+        run: python ./src/train_model.py --timestamp "${{ steps.ts.outputs.timestamp }}"
+
+      - name: Evaluate model
+        run: python ./src/evaluate_model.py --timestamp "${{ steps.ts.outputs.timestamp }}"
+
+      - name: Move artifacts into folders
+        run: |
+          mv model_${{ steps.ts.outputs.timestamp }}_gb_calibrated.joblib models/
+          mv ${{ steps.ts.outputs.timestamp }}_metrics.json metrics/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-run-${{ steps.ts.outputs.timestamp }}
+          path: |
+            models/model_${{ steps.ts.outputs.timestamp }}_gb_calibrated.joblib
+            metrics/${{ steps.ts.outputs.timestamp }}_metrics.json
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git add models/ metrics/
+          git commit -m "Scheduled run ${{ steps.ts.outputs.timestamp }}" || echo "Nothing to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
